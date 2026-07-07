@@ -1,90 +1,96 @@
 # AllMuteHotkey
 
-Лёгкая утилита для Windows: **глобальный хоткей**, который выключает или включает **все микрофоны** в системе.
+Lightweight Windows utility that toggles **all active microphones** with a global hotkey.
 
-Без GUI, без трея, без лишних зависимостей — только WinAPI и WASAPI. Подходит для автозагрузки и портфолио.
+No GUI framework, no tray app framework, no heavy dependencies - just WinAPI + WASAPI.
 
-## Возможности
+## Features
 
-- Мут/анмут **всех активных микрофонов** одной кнопкой
-- Глобальный хоткей, работает из любого приложения
-- Настройка через консоль
-- Автозагрузка при входе в Windows
-- Фоновый режим без окна (~сотни КБ в Release)
-- Защита от двойного запуска
-- Понятные сообщения об ошибках (занятый хоткей, нет микрофонов и т.д.)
+- Toggle mute/unmute for all active input devices
+- Global hotkeys from keyboard and mouse
+- Console-only setup (menu + CLI commands)
+- Optional autostart on Windows sign-in
+- Hidden daemon mode (single-instance protection)
+- Small top-center visual indicator for ~1 second on toggle:
+  - `🎤` = unmuted
+  - `🔇` = muted
 
-## Быстрый старт
+## Quick Start
 
 ```powershell
-# 1. Соберите Release x64 в Visual Studio
-# 2. Задайте хоткей
+# 1) Build Release x64 in Visual Studio
+# 2) Set a hotkey
 .\AllMuteHotkey.exe hotkey Ctrl+Shift+M
 
-# 3. Включите автозагрузку и запустите фоновый режим
+# 3) Enable autostart and launch daemon
 .\AllMuteHotkey.exe install
 
-# Проверить состояние
+# 4) Check current status
 .\AllMuteHotkey.exe status
 ```
 
-## Команды
+## Commands
 
-| Команда | Описание |
-|---------|----------|
-| `hotkey Ctrl+Shift+M` | Задать глобальный хоткей |
-| `install` | Добавить в автозагрузку и запустить |
-| `uninstall` | Убрать из автозагрузки и остановить |
-| `start` | Запустить фоновый режим |
-| `stop` | Остановить фоновый режим |
-| `status` | Хоткей, автозагрузка, список микрофонов |
-| `toggle` / `mute` / `unmute` | Управление микрофонами из консоли |
-| `notify on\|off` | Звук при переключении хоткеем |
-| `help` | Справка |
+| Command | Description |
+|---------|-------------|
+| `menu` | Open interactive numeric menu |
+| `hotkey Ctrl+Shift+M` | Set global hotkey |
+| `hotkey Ctrl+Mouse4` | Set mouse hotkey |
+| `install` | Enable autostart and run daemon |
+| `uninstall` | Disable autostart and stop daemon |
+| `start` | Start daemon mode |
+| `stop` | Stop daemon mode |
+| `status` | Show hotkey, daemon/autostart state, microphones |
+| `toggle` | Toggle all microphones |
+| `mute` | Mute all microphones |
+| `unmute` | Unmute all microphones |
+| `notify on\|off` | Enable/disable beep on toggle |
+| `help` | Show help |
 
-### Формат хоткея
+## Hotkey Format
 
-- Модификаторы: `Ctrl`, `Alt`, `Shift`, `Win`
-- Клавиши: буквы, цифры, `F1`–`F24`, `Space`, `Tab`, стрелки и др.
-- Примеры: `Ctrl+Shift+M`, `Ctrl+Alt+F8`, `Win+Shift+V`
-- Нужен **хотя бы один модификатор** и **ровно одна** основная клавиша
+- Modifiers: `Ctrl`, `Alt`, `Shift`, `Win` (at least one required)
+- Keyboard main key: letters, digits, `F1`-`F24`, arrows, `Tab`, `Space`, etc.
+- Mouse main key:
+  - `MouseLeft`
+  - `MouseRight`
+  - `MouseMiddle`
+  - `Mouse4` (`XBUTTON1`, usually side-back)
+  - `Mouse5` (`XBUTTON2`, usually side-forward)
 
-## UX-сценарии
+Examples:
+- `Ctrl+Shift+M`
+- `Ctrl+Alt+F8`
+- `Win+Shift+V`
+- `Ctrl+Mouse4`
+- `Alt+Mouse5`
 
-| Ситуация | Поведение |
-|----------|-----------|
-| Первый запуск без настроек | Показывается справка и подсказка с двумя шагами |
-| Хоткей не задан | `install` / `start` откажут с понятным сообщением |
-| Хоткей занят другим приложением | Ошибка при `hotkey`, подсказка выбрать другую комбинацию |
-| Смена хоткея при работающем демоне | Сохранение + подсказка `stop` → `start` |
-| Повторный `start` / `install` | «Уже запущен», без дублирования процесса |
-| `stop` когда не запущен | Информационное сообщение, не ошибка |
-| Нет активных микрофонов | `status` предупреждает, `mute`/`toggle` возвращают ошибку |
-| Автозагрузка | Реестр `HKCU\...\Run`, аргумент `run` |
-| Настройки | `%APPDATA%\AllMuteHotkey\config.ini` |
+## Build
 
-## Сборка
+Requirements:
+- Windows 10+
+- Visual Studio 2022+ with **Desktop development with C++**
 
-**Требования:** Visual Studio 2022+ с C++ Desktop Development, Windows 10+
+Steps:
+1. Open `muter/muter.slnx`
+2. Select `Release | x64`
+3. Build Solution
 
-1. Откройте `muter/muter.slnx`
-2. Конфигурация: **Release | x64**
-3. Build → Build Solution
+Output binary:
+- `muter/AllMuteHotkey/x64/Release/AllMuteHotkey.exe`
 
-Готовый `AllMuteHotkey.exe` будет в `muter/x64/Release/`.
+## Architecture
 
-## Архитектура
-
+```text
+main.cpp       CLI + menu + command routing
+daemon.cpp     hidden message window, hotkey/mouse hook loop, overlay indicator
+audio.cpp      WASAPI microphone enumeration + mute control
+hotkey.cpp     hotkey string parsing + formatting
+config.cpp     config file in %APPDATA%\AllMuteHotkey\config.ini
+autostart.cpp  autostart registry integration (HKCU\...\Run)
+console_ui.cpp console output and menu rendering
 ```
-main.cpp        — CLI и точка входа
-daemon.cpp      — скрытое окно, RegisterHotKey, цикл сообщений
-audio.cpp       — WASAPI: перечисление и mute capture-устройств
-hotkey.cpp      — разбор строки хоткея
-config.cpp      — INI в %APPDATA%
-autostart.cpp   — автозагрузка через реестр
-console_ui.cpp  — вывод в консоль
-```
 
-## Лицензия
+## License
 
-MIT — используйте свободно в портфолио и pet-проектах.
+MIT
