@@ -39,42 +39,43 @@ bool is_help_command(const std::wstring& command) {
 bool validate_and_save_hotkey(amh::Config& config, const std::wstring& combo) {
     const auto parsed = amh::parse_hotkey(combo);
     if (!parsed) {
-        amh::print_error(
-            L"Не удалось разобрать хоткей. Используйте формат Ctrl+Shift+M, Ctrl+Alt+F8 и т.д.");
-        amh::print_info(L"Нужен ровно один основной ключ и хотя бы один модификатор.");
+        amh::print_error(L"Failed to parse hotkey. Use format Ctrl+Shift+M, Ctrl+Alt+F8, etc.");
+        amh::print_info(L"Use exactly one main key and at least one modifier.");
         return false;
     }
 
     HWND probe = CreateWindowExW(0, L"STATIC", L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, nullptr, nullptr);
     if (!probe) {
-        amh::print_error(L"Не удалось проверить хоткей.");
+        amh::print_error(L"Failed to validate hotkey.");
         return false;
     }
 
-    if (!RegisterHotKey(probe, amh::kHotkeyId, parsed->modifiers, parsed->vk)) {
-        const DWORD error = GetLastError();
-        DestroyWindow(probe);
-        amh::print_error(amh::hotkey_error_message(error));
-        return false;
+    if (!amh::is_mouse_hotkey_vk(parsed->vk)) {
+        if (!RegisterHotKey(probe, amh::kHotkeyId, parsed->modifiers, parsed->vk)) {
+            const DWORD error = GetLastError();
+            DestroyWindow(probe);
+            amh::print_error(amh::hotkey_error_message(error));
+            return false;
+        }
+        UnregisterHotKey(probe, amh::kHotkeyId);
     }
-    UnregisterHotKey(probe, amh::kHotkeyId);
     DestroyWindow(probe);
 
     config.hotkey_modifiers = parsed->modifiers;
     config.hotkey_vk = parsed->vk;
     config.configured = true;
     if (!amh::save_config(config)) {
-        amh::print_error(L"Не удалось сохранить настройки.");
+        amh::print_error(L"Failed to save settings.");
         return false;
     }
 
-    amh::print_success(L"Хоткей сохранён: " + amh::format_hotkey(*parsed));
+    amh::print_success(std::wstring(L"Hotkey saved: ") + amh::format_hotkey(*parsed));
     if (amh::is_daemon_running()) {
-        amh::print_info(L"Перезапустите фоновый режим, чтобы применить новый хоткей:");
+        amh::print_info(L"Restart daemon mode to apply the new hotkey:");
         amh::print_info(L"  AllMuteHotkey stop");
         amh::print_info(L"  AllMuteHotkey start");
     } else {
-        amh::print_info(L"Запустите фоновый режим: AllMuteHotkey start");
+        amh::print_info(L"Start daemon mode: AllMuteHotkey start");
     }
     return true;
 }
@@ -82,7 +83,7 @@ bool validate_and_save_hotkey(amh::Config& config, const std::wstring& combo) {
 bool start_background_process() {
     const std::wstring exe = amh::executable_path();
     if (exe.empty()) {
-        amh::print_error(L"Не удалось определить путь к программе.");
+        amh::print_error(L"Failed to detect executable path.");
         return false;
     }
 
@@ -95,7 +96,7 @@ bool start_background_process() {
     si.wShowWindow = SW_HIDE;
     if (!CreateProcessW(nullptr, cmd_buffer.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr,
                         &si, &pi)) {
-        amh::print_error(L"Не удалось запустить фоновый режим.");
+        amh::print_error(L"Failed to start daemon mode.");
         return false;
     }
 
@@ -109,7 +110,7 @@ int run_menu() {
 
     while (true) {
         auto config = amh::load_config().value_or(amh::Config{});
-        amh::set_ui_language(config.language);
+        amh::set_ui_language("en");
         amh::print_menu(config);
 
         if (!config.configured) {
@@ -127,10 +128,9 @@ int run_menu() {
                 break;
             case 2: {
                 amh::print_hotkey_examples();
-                const std::wstring combo =
-                    amh::prompt_line(L"Введите хоткей, например Ctrl+Shift+M: ");
+                const std::wstring combo = amh::prompt_line(L"Enter hotkey, e.g. Ctrl+Shift+M: ");
                 if (combo.empty()) {
-                    amh::print_info(L"Изменение хоткея отменено.");
+                    amh::print_info(L"Hotkey change cancelled.");
                     break;
                 }
                 validate_and_save_hotkey(config, combo);
@@ -138,11 +138,11 @@ int run_menu() {
             }
             case 3:
                 if (!config.configured) {
-                    amh::print_error(L"Сначала задайте хоткей в пункте 2.");
+                    amh::print_error(L"Set a hotkey first in menu item 2.");
                     break;
                 }
                 if (!amh::enable_autostart()) {
-                    amh::print_error(L"Не удалось добавить в автозагрузку.");
+                    amh::print_error(L"Failed to enable autostart.");
                     break;
                 }
                 config.autostart = true;
@@ -152,91 +152,67 @@ int run_menu() {
                         break;
                     }
                 }
-                amh::print_success(L"Автозагрузка включена. Фоновый режим запущен.");
+                amh::print_success(L"Autostart enabled. Daemon started.");
                 break;
             case 4:
                 if (amh::is_daemon_running()) {
                     amh::signal_daemon_stop();
                 }
                 if (!amh::disable_autostart()) {
-                    amh::print_error(L"Не удалось убрать из автозагрузки.");
+                    amh::print_error(L"Failed to disable autostart.");
                     break;
                 }
                 config.autostart = false;
                 amh::save_config(config);
-                amh::print_success(L"Автозагрузка отключена, фоновый режим остановлен.");
+                amh::print_success(L"Autostart disabled, daemon stopped.");
                 break;
             case 5:
                 if (!config.configured) {
-                    amh::print_error(L"Сначала задайте хоткей в пункте 2.");
+                    amh::print_error(L"Set a hotkey first in menu item 2.");
                     break;
                 }
                 if (amh::is_daemon_running()) {
-                    amh::print_info(L"Фоновый режим уже запущен.");
+                    amh::print_info(L"Daemon is already running.");
                     break;
                 }
                 if (start_background_process()) {
-                    amh::print_success(L"Фоновый режим запущен.");
+                    amh::print_success(L"Daemon started.");
                 }
                 break;
             case 6:
                 if (!amh::is_daemon_running()) {
-                    amh::print_info(L"Фоновый режим не запущен.");
+                    amh::print_info(L"Daemon is not running.");
                     break;
                 }
                 if (!amh::signal_daemon_stop()) {
-                    amh::print_error(L"Не удалось остановить фоновый режим.");
+                    amh::print_error(L"Failed to stop daemon.");
                     break;
                 }
-                amh::print_success(L"Фоновый режим остановлен.");
+                amh::print_success(L"Daemon stopped.");
                 break;
-            case 7:
-                if (!amh::set_all_microphones_muted(true)) {
-                    amh::print_error(L"Не удалось выключить микрофоны.");
-                    break;
-                }
-                amh::print_success(L"Все микрофоны выключены.");
-                break;
-            case 8:
-                if (!amh::set_all_microphones_muted(false)) {
-                    amh::print_error(L"Не удалось включить микрофоны.");
-                    break;
-                }
-                amh::print_success(L"Все микрофоны включены.");
-                break;
-            case 9: {
+            case 7: {
                 bool now_muted = false;
                 if (!amh::toggle_all_microphones(now_muted)) {
-                    amh::print_error(L"Не удалось переключить микрофоны. Проверьте status.");
+                    amh::print_error(L"Failed to toggle microphones. Check status.");
                     break;
                 }
-                amh::print_success(now_muted ? L"Все микрофоны выключены." : L"Все микрофоны включены.");
+                amh::print_success(now_muted ? L"All microphones muted." : L"All microphones unmuted.");
                 break;
             }
-            case 10:
+            case 8:
                 config.notify_sound = !config.notify_sound;
                 if (!amh::save_config(config)) {
-                    amh::print_error(L"Не удалось сохранить настройки.");
+                    amh::print_error(L"Failed to save settings.");
                     break;
                 }
-                amh::print_success(config.notify_sound ? L"Звук при переключении включён."
-                                                       : L"Звук при переключении выключен.");
+                amh::print_success(config.notify_sound ? L"Notification sound enabled."
+                                                       : L"Notification sound disabled.");
                 break;
-            case 11:
+            case 9:
                 amh::print_help();
                 break;
-            case 12:
-                config.language = (config.language == "en") ? "ru" : "en";
-                amh::set_ui_language(config.language);
-                if (!amh::save_config(config)) {
-                    amh::print_error(L"Не удалось сохранить язык.");
-                    break;
-                }
-                amh::print_success(config.language == "en" ? L"Language switched to English."
-                                                           : L"Язык переключен на русский.");
-                break;
             default:
-                amh::print_error(L"Такого пункта нет.");
+                amh::print_error(L"Invalid menu item.");
                 break;
         }
 
@@ -253,7 +229,7 @@ int run_cli(int argc, wchar_t** argv) {
 
     const std::wstring command = to_lower(argv[1]);
     auto config = amh::load_config().value_or(amh::Config{});
-    amh::set_ui_language(config.language);
+    amh::set_ui_language("en");
 
     if (is_help_command(command)) {
         amh::print_help();
@@ -266,25 +242,22 @@ int run_cli(int argc, wchar_t** argv) {
 
     if (command == L"lang") {
         if (argc < 3) {
-            amh::print_error(L"Использование: AllMuteHotkey lang ru|en");
+            amh::print_error(L"Usage: AllMuteHotkey lang en");
             return 1;
         }
         const std::wstring value = to_lower(argv[2]);
-        if (value == L"ru") {
-            config.language = "ru";
-        } else if (value == L"en") {
+        if (value == L"en") {
             config.language = "en";
         } else {
-            amh::print_error(L"Использование: AllMuteHotkey lang ru|en");
+            amh::print_error(L"Usage: AllMuteHotkey lang en");
             return 1;
         }
         if (!amh::save_config(config)) {
-            amh::print_error(L"Не удалось сохранить язык.");
+            amh::print_error(L"Failed to save language.");
             return 1;
         }
         amh::set_ui_language(config.language);
-        amh::print_success(config.language == "en" ? L"Language switched to English."
-                                                   : L"Язык переключен на русский.");
+        amh::print_success(L"Language switched to English.");
         return 0;
     }
 
@@ -295,7 +268,7 @@ int run_cli(int argc, wchar_t** argv) {
 
     if (command == L"hotkey") {
         if (argc < 3) {
-            amh::print_error(L"Укажите комбинацию, например: AllMuteHotkey hotkey Ctrl+Shift+M");
+            amh::print_error(L"Provide hotkey combo, for example: AllMuteHotkey hotkey Ctrl+Shift+M");
             return 1;
         }
 
@@ -306,34 +279,34 @@ int run_cli(int argc, wchar_t** argv) {
     if (command == L"toggle") {
         bool now_muted = false;
         if (!amh::toggle_all_microphones(now_muted)) {
-            amh::print_error(L"Не удалось переключить микрофоны. Проверьте status.");
+            amh::print_error(L"Failed to toggle microphones. Check status.");
             return 1;
         }
-        amh::print_success(now_muted ? L"Все микрофоны выключены." : L"Все микрофоны включены.");
+        amh::print_success(now_muted ? L"All microphones muted." : L"All microphones unmuted.");
         return 0;
     }
 
     if (command == L"mute") {
         if (!amh::set_all_microphones_muted(true)) {
-            amh::print_error(L"Не удалось выключить микрофоны.");
+            amh::print_error(L"Failed to mute microphones.");
             return 1;
         }
-        amh::print_success(L"Все микрофоны выключены.");
+        amh::print_success(L"All microphones muted.");
         return 0;
     }
 
     if (command == L"unmute") {
         if (!amh::set_all_microphones_muted(false)) {
-            amh::print_error(L"Не удалось включить микрофоны.");
+            amh::print_error(L"Failed to unmute microphones.");
             return 1;
         }
-        amh::print_success(L"Все микрофоны включены.");
+        amh::print_success(L"All microphones unmuted.");
         return 0;
     }
 
     if (command == L"notify") {
         if (argc < 3) {
-            amh::print_error(L"Использование: AllMuteHotkey notify on|off");
+            amh::print_error(L"Usage: AllMuteHotkey notify on|off");
             return 1;
         }
         const std::wstring value = to_lower(argv[2]);
@@ -342,25 +315,25 @@ int run_cli(int argc, wchar_t** argv) {
         } else if (value == L"off" || value == L"0" || value == L"false") {
             config.notify_sound = false;
         } else {
-            amh::print_error(L"Использование: AllMuteHotkey notify on|off");
+            amh::print_error(L"Usage: AllMuteHotkey notify on|off");
             return 1;
         }
         if (!amh::save_config(config)) {
-            amh::print_error(L"Не удалось сохранить настройки.");
+            amh::print_error(L"Failed to save settings.");
             return 1;
         }
-        amh::print_success(config.notify_sound ? L"Звук при переключении включён."
-                                               : L"Звук при переключении выключен.");
+        amh::print_success(config.notify_sound ? L"Notification sound enabled."
+                                               : L"Notification sound disabled.");
         return 0;
     }
 
     if (command == L"start" || command == L"run") {
         if (!config.configured) {
-            amh::print_error(L"Сначала задайте хоткей: AllMuteHotkey hotkey Ctrl+Shift+M");
+            amh::print_error(L"Set a hotkey first: AllMuteHotkey hotkey Ctrl+Shift+M");
             return 1;
         }
         if (amh::is_daemon_running()) {
-            amh::print_info(L"Фоновый режим уже запущен.");
+            amh::print_info(L"Daemon is already running.");
             return 0;
         }
 
@@ -368,7 +341,7 @@ int run_cli(int argc, wchar_t** argv) {
             if (!start_background_process()) {
                 return 1;
             }
-            amh::print_success(L"Фоновый режим запущен.");
+            amh::print_success(L"Daemon mode started.");
             return 0;
         }
 
@@ -377,11 +350,11 @@ int run_cli(int argc, wchar_t** argv) {
             return 0;
         }
         if (code == 3) {
-            amh::print_error(L"Хоткей занят другим приложением. Задайте другую комбинацию.");
+            amh::print_error(L"Hotkey is already used by another app. Pick another combination.");
             return 1;
         }
         if (code != 0) {
-            amh::print_error(L"Не удалось запустить фоновый режим.");
+            amh::print_error(L"Failed to start daemon mode.");
             return 1;
         }
         return 0;
@@ -389,24 +362,24 @@ int run_cli(int argc, wchar_t** argv) {
 
     if (command == L"stop") {
         if (!amh::is_daemon_running()) {
-            amh::print_info(L"Фоновый режим не запущен.");
+            amh::print_info(L"Daemon is not running.");
             return 0;
         }
         if (!amh::signal_daemon_stop()) {
-            amh::print_error(L"Не удалось остановить фоновый режим.");
+            amh::print_error(L"Failed to stop daemon mode.");
             return 1;
         }
-        amh::print_success(L"Фоновый режим остановлен.");
+        amh::print_success(L"Daemon mode stopped.");
         return 0;
     }
 
     if (command == L"install") {
         if (!config.configured) {
-            amh::print_error(L"Сначала задайте хоткей: AllMuteHotkey hotkey Ctrl+Shift+M");
+            amh::print_error(L"Set a hotkey first: AllMuteHotkey hotkey Ctrl+Shift+M");
             return 1;
         }
         if (!amh::enable_autostart()) {
-            amh::print_error(L"Не удалось добавить в автозагрузку.");
+            amh::print_error(L"Failed to enable autostart.");
             return 1;
         }
         config.autostart = true;
@@ -418,7 +391,7 @@ int run_cli(int argc, wchar_t** argv) {
             }
         }
 
-        amh::print_success(L"Автозагрузка включена. Программа будет запускаться при входе в Windows.");
+        amh::print_success(L"Autostart enabled. App will launch on Windows sign-in.");
         return 0;
     }
 
@@ -427,17 +400,17 @@ int run_cli(int argc, wchar_t** argv) {
             amh::signal_daemon_stop();
         }
         if (!amh::disable_autostart()) {
-            amh::print_error(L"Не удалось убрать из автозагрузки.");
+            amh::print_error(L"Failed to disable autostart.");
             return 1;
         }
         config.autostart = false;
         amh::save_config(config);
-        amh::print_success(L"Автозагрузка отключена, фоновый режим остановлен.");
+        amh::print_success(L"Autostart disabled, daemon stopped.");
         return 0;
     }
 
-    amh::print_error(L"Неизвестная команда: " + command);
-    amh::print_info(L"Справка: AllMuteHotkey help");
+    amh::print_error(L"Unknown command: " + command);
+    amh::print_info(L"Help: AllMuteHotkey help");
     return 1;
 }
 

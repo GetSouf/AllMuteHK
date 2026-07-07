@@ -110,6 +110,21 @@ std::optional<std::uint32_t> parse_main_key(const std::wstring& token) {
     if (token == L"right") {
         return VK_RIGHT;
     }
+    if (token == L"mouseleft" || token == L"lmb" || token == L"leftclick") {
+        return VK_LBUTTON;
+    }
+    if (token == L"mouseright" || token == L"rmb" || token == L"rightclick") {
+        return VK_RBUTTON;
+    }
+    if (token == L"mousemiddle" || token == L"mmb" || token == L"middleclick") {
+        return VK_MBUTTON;
+    }
+    if (token == L"mouse4" || token == L"xbutton1" || token == L"mouseback") {
+        return VK_XBUTTON1;
+    }
+    if (token == L"mouse5" || token == L"xbutton2" || token == L"mouseforward") {
+        return VK_XBUTTON2;
+    }
 
     return parse_function_key(token);
 }
@@ -185,6 +200,26 @@ std::wstring format_hotkey(const Hotkey& hotkey) {
         result += L"Win";
     }
 
+    std::wstring mouse_name;
+    if (hotkey.vk == VK_LBUTTON) {
+        mouse_name = L"MouseLeft";
+    } else if (hotkey.vk == VK_RBUTTON) {
+        mouse_name = L"MouseRight";
+    } else if (hotkey.vk == VK_MBUTTON) {
+        mouse_name = L"MouseMiddle";
+    } else if (hotkey.vk == VK_XBUTTON1) {
+        mouse_name = L"Mouse4";
+    } else if (hotkey.vk == VK_XBUTTON2) {
+        mouse_name = L"Mouse5";
+    }
+    if (!mouse_name.empty()) {
+        if (!result.empty()) {
+            result += L"+";
+        }
+        result += mouse_name;
+        return result;
+    }
+
     wchar_t key_name[64] = {};
     const UINT scan_code = MapVirtualKeyW(hotkey.vk, MAPVK_VK_TO_VSC);
   if (scan_code != 0 &&
@@ -206,11 +241,15 @@ std::wstring format_hotkey(const Hotkey& hotkey) {
 std::wstring hotkey_error_message(DWORD error_code) {
     switch (error_code) {
         case ERROR_HOTKEY_ALREADY_REGISTERED:
-            return L"Эта комбинация уже занята другим приложением. Выберите другую.";
+            return L"This hotkey is already used by another application. Choose another one.";
         default:
-            return L"Не удалось зарегистрировать хоткей (код ошибки " + std::to_wstring(error_code) +
-                   L").";
+            return L"Failed to register hotkey (error code " + std::to_wstring(error_code) + L").";
     }
+}
+
+bool is_mouse_hotkey_vk(std::uint32_t vk) {
+    return vk == VK_LBUTTON || vk == VK_RBUTTON || vk == VK_MBUTTON || vk == VK_XBUTTON1 ||
+           vk == VK_XBUTTON2;
 }
 
 }  // namespace amh
