@@ -4,6 +4,29 @@ Lightweight Windows utility that toggles **all active microphones** with a globa
 
 No heavy GUI framework, no external runtime dependencies - just WinAPI + WASAPI.
 
+## Download Release
+
+You can download a ready-to-run `.exe` from the project Releases page:
+
+- [AllMuteHK Releases](https://github.com/GetSouf/AllMuteHK/releases)
+
+After download:
+
+1. Extract the archive (if the release is packaged).
+2. Open PowerShell in the folder with `AllMuteHotkey.exe`.
+3. Run:
+
+```powershell
+.\AllMuteHotkey.exe
+```
+
+Optional first-time setup:
+
+```powershell
+.\AllMuteHotkey.exe hotkey Ctrl+Shift+M
+.\AllMuteHotkey.exe install
+```
+
 ## Features
 
 - Toggle mute/unmute for all active input devices
