@@ -5,6 +5,7 @@
 #include "daemon.h"
 #include "hotkey.h"
 
+#include <cstdio>
 #include <iostream>
 #include <limits>
 #include <locale>
@@ -28,6 +29,18 @@ void setup_console_utf8() {
     } catch (...) {
         // Keep default C locale.
     }
+}
+
+void ensure_console_attached() {
+    if (GetConsoleWindow() == nullptr) {
+        AllocConsole();
+        FILE* stream = nullptr;
+        freopen_s(&stream, "CONOUT$", "w", stdout);
+        freopen_s(&stream, "CONOUT$", "w", stderr);
+        freopen_s(&stream, "CONIN$", "r", stdin);
+        std::ios::sync_with_stdio();
+    }
+    setup_console_utf8();
 }
 
 void set_ui_language(const std::string& code) {

@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="AllMuteHotkey/AllMuteHotkey.vcxproj" />
+  <Project Path="AllMuteHotkey/AllMuteHotkey.vcxproj" Id="e2d510c0-30ba-4096-81ba-6f3c8e425c69" />
 </Solution>

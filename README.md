@@ -27,6 +27,12 @@ Optional first-time setup:
 .\AllMuteHotkey.exe install
 ```
 
+Important:
+- Use `install` for autostart (runs hidden daemon with `run` argument).
+- Do **not** put a raw `.exe` shortcut into Windows Startup manually.
+- If you open the app for setup (`.\AllMuteHotkey.exe`), close the console only after you are done configuring.
+- After `install`, daemon runs in background (tray icon only, no console window on reboot).
+
 ## Features
 
 - Toggle mute/unmute for all active input devices

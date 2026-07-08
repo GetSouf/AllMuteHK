@@ -106,7 +106,7 @@ bool start_background_process() {
 }
 
 int run_menu() {
-    amh::setup_console_utf8();
+    amh::ensure_console_attached();
 
     while (true) {
         auto config = amh::load_config().value_or(amh::Config{});
@@ -221,7 +221,7 @@ int run_menu() {
 }
 
 int run_cli(int argc, wchar_t** argv) {
-    amh::setup_console_utf8();
+    amh::ensure_console_attached();
 
     if (argc < 2) {
         return run_menu();
@@ -416,7 +416,7 @@ int run_cli(int argc, wchar_t** argv) {
 
 }  // namespace
 
-int wmain(int argc, wchar_t** argv) {
+int run_application(int argc, wchar_t** argv) {
     if (argc >= 2) {
         const std::wstring command = to_lower(argv[1]);
         if (command != L"run") {
@@ -426,14 +426,23 @@ int wmain(int argc, wchar_t** argv) {
         return run_cli(argc, argv);
     }
 
-    amh::setup_console_utf8();
     auto config = amh::load_config().value_or(amh::Config{});
     if (!config.configured) {
-        amh::print_help();
-        amh::print_first_run_hint();
         return 1;
     }
 
     const int code = amh::run_daemon(config);
     return code == 2 ? 0 : code;
+}
+
+int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
+    int argc = 0;
+    wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (!argv) {
+        return 1;
+    }
+
+    const int result = run_application(argc, argv);
+    LocalFree(argv);
+    return result;
 }

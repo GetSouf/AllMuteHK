@@ -21,6 +21,8 @@ HHOOK g_mouse_hook = nullptr;
 HWND g_daemon_hwnd = nullptr;
 constexpr UINT kMouseTriggerMessage = WM_APP + 1;
 constexpr UINT kTrayCallbackMessage = WM_APP + 2;
+constexpr UINT_PTR kTraySyncTimerId = 2;
+constexpr int kTraySyncDelayMs = 2500;
 constexpr UINT_PTR kTrayIconId = 1;
 constexpr UINT kTrayMenuToggleId = 1001;
 constexpr UINT kTrayMenuExitId = 1002;
@@ -64,6 +66,12 @@ void update_tray_icon(bool muted) {
     Shell_NotifyIconW(NIM_MODIFY, &g_tray_nid);
 }
 
+void sync_tray_state() {
+    const bool muted = are_all_microphones_muted();
+    update_tray_icon(muted);
+    update_tray_tooltip(muted);
+}
+
 void trigger_toggle() {
     if (g_state == nullptr) {
         return;
@@ -74,8 +82,7 @@ void trigger_toggle() {
             play_notify_sound(now_muted);
         }
         show_overlay(now_muted);
-        update_tray_icon(now_muted);
-        update_tray_tooltip(now_muted);
+        sync_tray_state();
     }
 }
 
@@ -231,6 +238,12 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpar
                 show_tray_menu(hwnd);
             }
             return 0;
+        case WM_TIMER:
+            if (wparam == kTraySyncTimerId) {
+                KillTimer(hwnd, kTraySyncTimerId);
+                sync_tray_state();
+            }
+            return 0;
         case WM_DESTROY:
             remove_tray_icon();
             PostQuitMessage(0);
@@ -339,10 +352,6 @@ int run_daemon(const Config& config) {
         return 1;
     }
 
-    if (HWND console = GetConsoleWindow()) {
-        ShowWindow(console, SW_HIDE);
-    }
-
     DaemonState state{config, stop_event};
     g_state = &state;
 
@@ -370,7 +379,8 @@ int run_daemon(const Config& config) {
         CloseHandle(mutex);
         return 1;
     }
-    update_tray_tooltip(are_all_microphones_muted());
+    sync_tray_state();
+    SetTimer(hwnd, kTraySyncTimerId, kTraySyncDelayMs, nullptr);
 
     const bool mouse_hotkey = is_mouse_hotkey_vk(config.hotkey_vk);
     if (mouse_hotkey) {
